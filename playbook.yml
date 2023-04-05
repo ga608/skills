@@ -1,0 +1,102 @@
+---
+- name: modulC
+  hosts: all
+  become: yes
+  tasks:
+  - name: update debian
+    apt: update_cache=yes
+    when: ansible_distribution == 'Debian'
+  - name: update centos
+    yum: update_cache=yes
+    when: ansible_distribution == 'Centos'
+  - name: install packet debian
+    apt: pkg={{ item }} state=latest
+    with_items:
+       - git
+       - curl
+       - lynx
+       - firewalld
+       - docker
+       - docker-compose
+       - python3-pip
+    when: ansible_distribution == 'Debian'
+  - name: install packet centos
+    yum: pkg={{ item }} state=latest
+    with_items:
+       - curl
+       - lynx
+       - git
+       - docker
+       - python3-pip
+    when: ansible_distribution == 'CentOS'
+  - name: install docker-composer
+    pip: name=docker-compose
+    when: ansible_distribution == 'CentOS'
+  - name: copy git
+    git:
+       repo: https://github.com/andgabs/skill_hmao
+       dest: /skillcloud-nginx
+       version: main
+    register: cloned
+  - name: enable firewall
+    systemd:
+       name: firewalld
+       enabled: yes
+       state: started
+  - name: firewall port
+    firewalld:
+       port: "{{ item }}"
+       permanent: true
+       immediate: true
+       state: enabled
+    with_items:
+       - 80/tcp
+       - 8080/tcp
+       - 1022/tcp
+  - name: change port
+    lineinfile:
+       path: /etc/ssh/sshd_config
+       regexp: '^#?Port!'
+       line: 'Port 1022'
+       state: present
+  - name: publick key
+    lineinfile:
+       path: /etc/ssh/sshd_config
+       regexp: '^#?PubkeyAuthentication'
+       line: 'PubkeyAuthentication yes'
+  - name: Restart Firewalld
+    service:
+       name: firewalld
+       state: restarted
+  - name: create directories docker
+    file:
+       path: "{{ item }}"
+       state: directory
+    with_items:
+    - /skillcloud-nginx/balance
+    - /skillcloud-nginx/site
+  - name: aa
+    command: mv /skillcloud-nginx/Dockerfile-balance /skillcloud-nginx/balance/Dockerfile 
+  - name: aa
+    command: mv /skillcloud-nginx/Dockerfile-site /skillcloud-nginx/site/Dockerfile
+  - name: aa
+    command: mv /skillcloud-nginx/nginx.conf /skillcloud-nginx/balance/nginx.conf
+  - name: aa
+    command: mv /skillcloud-nginx/index.html /skillcloud-nginx/site/index.html
+  - name: aa
+    command: docker build -t /skillcloud-nginx/balance/ -t balance:balance
+  - name: aa
+    command: docker build -t /skillcloud-nginx/site/ -t site:site
+  - name: aa
+    command: docker-compose build
+  - name: aa
+    command: docker-compose up
+  - name: restart ssh
+    service:
+       name: sshd
+       state: restarted
+    when: ansible_distribution == 'Debian'
+  - name: Restart SSH service
+    systemd:
+       name: ssh
+       state: restarted 
